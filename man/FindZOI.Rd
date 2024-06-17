@@ -4,7 +4,7 @@
 \alias{FindZOI}
 \title{FindZOI}
 \usage{
-FindZOI(chrDf, noise = NA, preNum = 3, etlD = 1, IETH = 1.75)
+FindZOI(chrDf, noise = NA, preNum = 3, etlD = 1, IETH = 1.75, sn = 3)
 }
 \arguments{
 \item{chrDf}{A chrDf.}
