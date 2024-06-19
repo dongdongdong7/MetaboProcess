@@ -207,4 +207,32 @@ cal_IE = function(int){
 
   return(S)
 }
-
+#' @title getChromPeakTable
+#' @description
+#' Get a chromPeakTable tibble.
+#'
+#' @param data A xcmsExperiment object after peak picking.
+#' @param style c("xcms", "neatms")
+#'
+#' @return A tibble.
+#' @export
+#'
+#' @examples
+#' getChromPeakTable(data)
+getChromPeakTable <- function(data, style = "xcms"){
+  chromPeakTable <- dplyr::as_tibble(cbind(xcms::chromPeaks(data),
+                                           xcms::chromPeakData(data)),
+                                     rownames = "cpid")
+  if(style == "xcms") return(chromPeakTable)
+  else if(style == "neatms"){
+    sampleData <- MsExperiment::sampleData(data)
+    sampleData$sample_order <- 1:nrow(sampleData)
+    sampleData <- dplyr::as_tibble(sampleData) %>%
+      dplyr::select(sample_order, sample_name)
+    colnames(sampleData) <- c("sample", "sample_name")
+    chromPeakTable <- dplyr::left_join(chromPeakTable, sampleData, by = c("sample" = "sample")) %>%
+      dplyr::select(mz, mzmin, mzmax, rt, rtmin, rtmax, into, intb, maxo, sn, sample, sample_name)
+    chromPeakTable$sample_name <- paste0(chromPeakTable$sample_name, ".mzML")
+    return(chromPeakTable)
+  }else stop("style is wrong!")
+}
