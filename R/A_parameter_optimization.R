@@ -553,7 +553,7 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
 optParam4xcms <- function(data_QC, res_dir = "./",
                           bin = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 10,
                           smooth = "mean", size = 3, p = 3, etlD = 1, IETH = 10, preNum = 3, sn = 0, loops = 8, tol_m1 = 30, threshold = 1, thread2 = 1, tol_m2 = 40, output_ZOI = FALSE, output_ZOI2 = FALSE,
-                          factor = 2, range = 1,massRange = 0.99, output_ZOI3 = FALSE,
+                          factor = 1, range = 1,massRange = 0.99, output_ZOI3 = FALSE,
                           rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", widthRange = 0.99, shiftRange = 0.95,
                           maxMassTol = 100, minPeakWidth = 1, maxPeakWidth = 100){
   #browser()

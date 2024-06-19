@@ -27,16 +27,17 @@ optParam4xcms(
   output_ZOI = FALSE,
   output_ZOI2 = FALSE,
   factor = 1,
-  range = 0.95,
-  massRange = 0.95,
+  range = 1,
+  massRange = 0.99,
   output_ZOI3 = FALSE,
   rt_tol = 5,
   mz_tol = 0.02,
   tol_nf = 0.5,
   method = "mz",
-  widthRange = 0.95,
+  widthRange = 0.99,
   shiftRange = 0.95,
   maxMassTol = 100,
+  minPeakWidth = 1,
   maxPeakWidth = 100
 )
 }
@@ -99,9 +100,15 @@ optParam4xcms(
 
 \item{method}{method.}
 
+\item{widthRange}{widthRange.}
+
 \item{shiftRange}{shiftRange.}
 
-\item{widthRangewidthRange.}{}
+\item{maxMassTol}{maxMassTol.}
+
+\item{minPeakWidth}{minPeakWidth.}
+
+\item{maxPeakWidth}{maxPeakWidth.}
 }
 \value{
 A list contains optimal parameters and ggplot2 object.
