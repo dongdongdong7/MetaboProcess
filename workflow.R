@@ -154,17 +154,21 @@ load("D:/fudan/Projects/2024/MetaboProcess/Progress/build_package/test_data/Para
 i <- 9486
 plot_chrDf(chrDf_ZOIs_3[[i]], baseline = TRUE)
 cal_massTol(chrDf_ZOIs_3[[i]])
-massTolVec <- sapply(chrDf_ZOIs_2, function(x) {cal_massTol(chrDf = x, factor = factor, range = range)})
+massTolVec <- sapply(chrDf_ZOIs_2, function(x) {cal_massTol(chrDf = x, factor = 1, range = 1)})
 peakWidthVec <- sapply(1:length(chrDf_ZOIs_2), function(i) {
   chrDf <- chrDf_ZOIs_2[[i]]
   peakWidth <- max(chrDf$rt) - min(chrDf$rt)
   return(peakWidth)
 })
-massTol_s <- boxplot.stats(massTolVec[massTolVec < maxMassTol])$stats[5]
+massTol_s <- boxplot.stats(massTolVec[massTolVec < 100])$stats[5]
+peakWidth_s_max <- boxplot.stats(peakWidthVec[peakWidthVec < 100 & peakWidthVec > 1])$stats[5]
+peakWidth_s_min <- boxplot.stats(peakWidthVec[peakWidthVec < 100 & peakWidthVec > 1])$stats[1]
+chrDf_ZOIs_3 <- chrDf_ZOIs_2[which(massTolVec<massTol_s & peakWidthVec<100 & peakWidthVec>1)]
 massTolVec <- massTolVec[which(massTolVec < massTol_s &
                                  peakWidthVec < 100 & peakWidthVec > 1)]
-tol_ppm <- sort(massTolVec)[round(length(massTolVec) * 0.99)]
+tol_ppm <- sort(massTolVec)[round(length(massTolVec) * 1)]
+cwtParam <- cal_cwtParam(chrDfList = chrDf_ZOIs_3, widthRange = 1)
 massTolVec <- sapply(chrDf_ZOIs_3, function(x) {cal_massTol(chrDf = x, factor = factor, range = range)})
-i <- 8
-plot_chrDf(chrDf_ZOIs_3[[which(massTolVec > 50)[i]]], baseline = TRUE)
+i <- 1
+plot_chrDf(chrDf_ZOIs_3[[which(peakWidthVec3 > 90)[i]]], baseline = TRUE)
 cal_massTol(chrDf_ZOIs_3[[which(massTolVec > 50)[i]]], factor = 2, range = 1)
