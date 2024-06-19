@@ -540,7 +540,10 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
 #' @param tol_nf tol_nf.
 #' @param method method.
 #' @param shiftRange shiftRange.
-#' @param widthRangewidthRange.
+#' @param widthRange widthRange.
+#' @param maxMassTol maxMassTol.
+#' @param minPeakWidth minPeakWidth.
+#' @param maxPeakWidth maxPeakWidth.
 #'
 #' @return A list contains optimal parameters and ggplot2 object.
 #' @export
@@ -550,8 +553,9 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
 optParam4xcms <- function(data_QC, res_dir = "./",
                           bin = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 10,
                           smooth = "mean", size = 3, p = 3, etlD = 1, IETH = 10, preNum = 3, sn = 0, loops = 8, tol_m1 = 30, threshold = 1, thread2 = 1, tol_m2 = 40, output_ZOI = FALSE, output_ZOI2 = FALSE,
-                          factor = 1, range = 0.95,massRange = 0.95, output_ZOI3 = FALSE,
-                          rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", widthRange = 0.95, shiftRange = 0.95){
+                          factor = 2, range = 1,massRange = 0.99, output_ZOI3 = FALSE,
+                          rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", widthRange = 0.99, shiftRange = 0.95,
+                          maxMassTol = 100, minPeakWidth = 1, maxPeakWidth = 100){
   #browser()
   start_time <- Sys.time()
   message("You are using optParam4xcms function for ms1!")
@@ -600,15 +604,15 @@ optParam4xcms <- function(data_QC, res_dir = "./",
     peakWidth <- max(chrDf$rt) - min(chrDf$rt)
     return(peakWidth)
   })
-  massTol_s <- boxplot.stats(massTolVec)$stats[5]
-  peakWidth_s <- boxplot.stats(peakWidthVec)$stats[5]
+  massTol_s <- boxplot.stats(massTolVec[massTolVec < maxMassTol])$stats[5]
+  #peakWidth_s <- boxplot.stats(peakWidthVec)$stats[5]
   #s <- sort(massTolVec)[round(length(massTolVec) * massRange)]
-  chrDf_ZOIs_3 <- chrDf_ZOIs_2[which(massTolVec<massTol_s & peakWidthVec<peakWidth_s)]
+  chrDf_ZOIs_3 <- chrDf_ZOIs_2[which(massTolVec<massTol_s & peakWidthVec<maxPeakWidth & peakWidthVec>minPeakWidth)]
   if(output_ZOI3){
     filePath <- paste0(res_dir, "chrDf_ZOIs_3.RData")
     save(chrDf_ZOIs_3, file = filePath)
   }
-  massTolVec <- massTolVec[which(massTolVec<massTol_s & peakWidthVec<peakWidth_s)]
+  massTolVec <- massTolVec[which(massTolVec<massTol_s & peakWidthVec<maxPeakWidth & peakWidthVec>minPeakWidth)]
   tol_ppm <- sort(massTolVec)[round(length(massTolVec) * massRange)]
   cwtParam <- cal_cwtParam(chrDfList = chrDf_ZOIs_3, widthRange = widthRange)
   shiftParam <- cal_shift(chrDfList = chrDf_ZOIs_3, rt_tol = rt_tol, mz_tol = mz_tol, tol_nf = tol_nf, method = method, range = shiftRange)

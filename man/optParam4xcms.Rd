@@ -35,7 +35,9 @@ optParam4xcms(
   tol_nf = 0.5,
   method = "mz",
   widthRange = 0.95,
-  shiftRange = 0.95
+  shiftRange = 0.95,
+  maxMassTol = 100,
+  maxPeakWidth = 100
 )
 }
 \arguments{

@@ -38,13 +38,12 @@ xcms::spectra(data) %>%
 MsExperiment::sampleData(data)
 # CentWave parameter optimization
 # (1) Noise estimation
-data_QC <- data[which(pd$sample_type == "QC")]
-MsExperiment::sampleData(data_QC)
-xcms::spectra(data_QC)
-n <- 1
-ndata <- data_QC[n]
 #chrDf_bins <- generateBin(ndata = ndata, bin = 0.05, mslevel = 1, thread = 24)
 load("D:/fudan/Projects/2024/MetaboProcess/Progress/build_package/test_data/massProcesser/chrDf_bins.RData")
+load("D:/fudan/Projects/2024/MetaboProcess/Progress/build_package/test_data/massProcesser/chrDf_ZOIs.RData")
+load("D:/fudan/Projects/2024/MetaboProcess/Progress/build_package/test_data/massProcesser/chrDf_ZOIs_2.RData")
+load("D:/fudan/Projects/2024/MetaboProcess/Progress/build_package/test_data/massProcesser/chrDf_ZOIs_3.RData")
+
 scanNumberVec <- sapply(chrDf_bins, nrow)
 chrDf_bins <- chrDf_bins[which(scanNumberVec > runInfo$scanCount * 0.05)]
 chrDf_ZOIs <- bins2ZOIs(chrDfList = chrDf_bins, thread = 4, sn = 0, IETH = 10)
