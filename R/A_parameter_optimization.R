@@ -18,7 +18,7 @@ generateBin <- function(ndata, bin = 0.05, mslevel = 1, thread = 1){
   runInfo <- mzR::runInfo(fileh)
   mzR::close(fileh);rm(fileh)
   lowMz <- runInfo$lowMz;highMz <- runInfo$highMz
-  rtSps <- rtSps <- Spectra::rtime(sps)
+  rtSps <- Spectra::rtime(sps)
   peaksData <- Spectra::peaksData(sps)
   mzRange <-seq(lowMz, highMz, by = bin)
   mzIter <- lapply(1:(length(mzRange) - 1), function(i) {c(mzRange[i], mzRange[i + 1])})
