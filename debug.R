@@ -11,6 +11,7 @@ FindZOI_baseline <- function(chrDf, noise, sn = 0,preNum = 3){
   if(length(aboveTHidx) == 0) return(NULL)
   candidateSegInd <- split(aboveTHidx, cumsum(c(1, diff(aboveTHidx) != 1)))
   candidateSegInd <- candidateSegInd[which(sapply(candidateSegInd, length) > preNum)]
+  if(length(candidateSegInd) == 0) return(NULL)
   chrDfList_ZOI_tmp <- lapply(1:length(candidateSegInd), function(i) {
     idx <- candidateSegInd[[i]]
     int <- chrDf$intensity[idx]
