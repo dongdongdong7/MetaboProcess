@@ -99,6 +99,7 @@ baselineEs <- function(chrDf, threshold = 1, tol_m = 30, loops = 6){
   fineEstimation <- function(xs, ys, int, tol_m = 0.5){
     top_idx <- inflect(ys, 1)$maxima
     bottom_idx <- inflect(int, 1)$minima
+    bottom_idx <- unique(c(1, bottom_idx, length(int)))
     bottom_idx <- setdiff(bottom_idx, top_idx)
     idx_seq_list <- lapply(1:(length(bottom_idx) - 1), function(x){
       idx_seq <- bottom_idx[x]:bottom_idx[x + 1]

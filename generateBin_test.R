@@ -74,12 +74,44 @@ generateBin <- function(ndata, bin = 0.1, slide = 0.05, mslevel = 1, thread = 1)
   return(chrDfList)
 }
 chrDfList_bins <- generateBin(ndata = ndata, thread = 4)
-length(chrDfList_bins) # 56748
-idx1 <- which(scanNumbers > 0 & scanNumbers < 10 & !is.na(scanNumbers))
-idx2 <- which(scanNumbers > 10 & scanNumbers < 50 & !is.na(scanNumbers))
-idx3 <- which(scanNumbers > 100 & scanNumbers < 200 & !is.na(scanNumbers))
-idx4 <- which(scanNumbers > 200 & !is.na(scanNumbers))
-i <- 904
-plot_chrDf(chrDfList_bins[[idx3[i]]], noise = noiseEstimation(chrDfList_bins[[idx3[i]]]))
+length(chrDfList_bins) # 22699
+logicalVec <- sapply(chrDfList_bins, function(x) {
+  if(nrow(x) == 0) return(FALSE)
+  else if(is.null(x)) return(FALSE)
+  else return(TRUE)
+})
+chrDfList_bins <- chrDfList_bins[logicalVec]
+length(chrDfList_bins) # 17272
+saveRDS(chrDfList_bins, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240627/chrDfList_bins.rds")
 scanNumbers <- sapply(chrDfList_bins, nrow)
-plot(x = 1:length(scanNumbers[scanNumbers > 0]), y = scanNumbers[scanNumbers > 0])
+idx <- which(scanNumbers >= 100)
+chrDfList_bins <- chrDfList_bins[idx]
+length(chrDfList_bins) # 1491
+chrDfList_bins <- lapply(chrDfList_bins, function(x) {
+  x$intensity <- smoothMean(x$intensity)
+  return(x)
+})
+i <- 18
+plot_chrDf(chrDfList_bins[[i]], noise = noiseEstimation(chrDfList_bins[[i]]))
+ZOI <- FindZOI(chrDfList_bins[[i]], noise = noiseEstimation(chrDfList_bins[[i]]),preNum = 3)
+plot_chrDf(ZOI[[1]])
+ZOI <- baselineEs(chrDf = ZOI[[1]], loops = 8, tol_m = 30, threshold = 1)
+plot_chrDf(ZOI, baseline = TRUE)
+# deductBaseline <- function(x){
+#   x$intensity <- x$intensity - x$baseline
+#   return(x)
+# }
+# ZOI <- deductBaseline(ZOI)
+ZOI <- edgeTrack(chrDf = ZOI)
+plot_chrDf(ZOI, baseline = TRUE)
+ZOI <- edgeTrack_finer(ZOI, tol_m = 30)
+ZOI <- edgeTrack_crude(ZOI, tol_m = 30)
+plot_chrDf(ZOI, baseline = TRUE)
+chrDf_ZOIs_2 <- lapply(1:length(chrDf_ZOIs), function(i) {
+  x <- chrDf_ZOIs[[i]]
+  chrDf_tmp <- tryCatch({
+    edgeTrack_finer(x, tol_m = tol_m2)
+  }, error = function(e){
+    edgeTrack_crude(x, tol_m = tol_m2)
+  })
+})

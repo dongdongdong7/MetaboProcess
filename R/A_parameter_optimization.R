@@ -393,6 +393,8 @@ edgeTrack_finer <- function(chrDf, preNum  = 3, tol_m = 30){
     tmpA <- getLine(A, A0);slopeA <- tmpA["slope"];interceptA <- tmpA["intercept"]
     tmpB <- getLine(B, B0);slopeB <- tmpB["slope"];interceptB <- tmpB["intercept"]
     Cx <- (interceptB - interceptA) / (slopeA - slopeB);Cy <- slopeA * Cx + interceptA;C <- c(Cx, Cy)
+    # print(a)
+    # print(b)
     if(C[1] > B[1] | C[1] < A[1]){
       angleA0 <- atan(abs(slopeA)) * (180 / pi)
       angleB0 <- atan(abs(slopeB)) * (180 / pi)
