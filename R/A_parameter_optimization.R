@@ -198,6 +198,46 @@ FindZOI <- function(chrDf, noise = NA, preNum = 3, etlD = 1,  IETH = 1.75, sn = 
   if(length(chrDfList_ZOI_tmp) == 0) return(NULL)
   return(chrDfList_ZOI_tmp)
 }
+#' @title FindZOI_baseline
+#' @description
+#' Find ZOIs from a big ZOI by baseline.
+#'
+#' @param chrDf chrDf
+#' @param noise noise
+#' @param sn sn
+#' @param preNum preNum
+#'
+#' @return A chrDf list
+#' @export
+#'
+#' @examples
+#' FindZOI_baseline(chrDf, noise = 1000)
+FindZOI_baseline <- function(chrDf, noise, sn = 0,preNum = 3){
+  #browser()
+  aboveTHidx <- which(chrDf$intensity > chrDf$baseline)
+  if(length(aboveTHidx) == 0) return(NULL)
+  candidateSegInd <- split(aboveTHidx, cumsum(c(1, diff(aboveTHidx) != 1)))
+  candidateSegInd <- candidateSegInd[which(sapply(candidateSegInd, length) > preNum)]
+  chrDfList_ZOI_tmp <- lapply(1:length(candidateSegInd), function(i) {
+    idx <- candidateSegInd[[i]]
+    int <- chrDf$intensity[idx]
+    if(max(int) < noise) return(NULL)
+    sn_tmp <- max(int) / noise
+    if(sn_tmp < sn) return(NULL)
+    intLength <- length(int)
+    if(intLength > preNum){
+      idx1 <- idx[1] - 1
+      if(idx1 < 0) idx1 <- 1
+      idx2 <- idx[intLength] + 1
+      if(idx2 > length(chrDf$intensity)) idx2 <- length(chrDf$intensity)
+      idx <- unique(c(idx1:idx[1], idx, idx[intLength]:idx2))
+      chrDf_tmp <- chrDf[idx, ]
+      return(chrDf_tmp)
+    }else return(NULL)
+  })
+  chrDfList_ZOI_tmp <- chrDfList_ZOI_tmp[!sapply(chrDfList_ZOI_tmp, is.null)]
+  return(chrDfList_ZOI_tmp)
+}
 #' @title edgeTrack
 #' @description
 #' locate the edge of a peak.

@@ -2,6 +2,7 @@
 
 export("%>%")
 export(FindZOI)
+export(FindZOI_baseline)
 export(baselineEs)
 export(bins2ZOIs)
 export(cal_IE)
