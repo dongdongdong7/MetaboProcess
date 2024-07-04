@@ -3,6 +3,7 @@ plot_chrDf(chrDf_test)
 chrDf_test <- baselineEs(chrDf = chrDf_test, loops = 8, tol_m = 30, threshold = 1)
 plot_chrDf(chrDf_test, baseline = TRUE)
 #MetaboProcess::plot_chrDf(chrDf_j, baseline = TRUE)
+ZOIList <- FindZOI(chrDf_test, noise = )
 chrDf_j_new <- MetaboProcess::edgeTrack(chrDf = chrDf_j)
 
 FindZOI_baseline <- function(chrDf, noise, sn = 0,preNum = 3){
