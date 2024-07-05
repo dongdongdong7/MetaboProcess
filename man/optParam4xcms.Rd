@@ -2,44 +2,9 @@
 % Please edit documentation in R/A_parameter_optimization.R
 \name{optParam4xcms}
 \alias{optParam4xcms}
-\title{optParam4xcms}
+\title{optParam4xcms_old}
 \usage{
-optParam4xcms(
-  data_QC,
-  res_dir = "./",
-  bin = 0.05,
-  mslevel = 1,
-  thread1 = 1,
-  output_bins = FALSE,
-  bin_scanNum = 10,
-  smooth = "mean",
-  size = 3,
-  p = 3,
-  etlD = 1,
-  IETH = 10,
-  preNum = 3,
-  sn = 0,
-  loops = 8,
-  tol_m1 = 30,
-  threshold = 1,
-  thread2 = 1,
-  tol_m2 = 40,
-  output_ZOI = FALSE,
-  output_ZOI2 = FALSE,
-  factor = 1,
-  range = 1,
-  massRange = 1,
-  output_ZOI3 = FALSE,
-  rt_tol = 5,
-  mz_tol = 0.02,
-  tol_nf = 0.5,
-  method = "mz",
-  widthRange = 1,
-  shiftRange = 0.95,
-  maxMassTol = 100,
-  minPeakWidth = 1,
-  maxPeakWidth = 100
-)
+optParam4xcms()
 }
 \arguments{
 \item{data_QC}{A MsExperiment object which contains QC sample.}
@@ -74,9 +39,9 @@ optParam4xcms(
 
 \item{tol_m1}{tol_m1.}
 
-\item{threshold}{threshold.}
-
 \item{thread2}{thread2.}
+
+\item{threshold}{threshold.}
 
 \item{tol_m2}{tol_m2}
 
@@ -100,9 +65,9 @@ optParam4xcms(
 
 \item{method}{method.}
 
-\item{widthRange}{widthRange.}
-
 \item{shiftRange}{shiftRange.}
+
+\item{widthRange}{widthRange.}
 
 \item{maxMassTol}{maxMassTol.}
 

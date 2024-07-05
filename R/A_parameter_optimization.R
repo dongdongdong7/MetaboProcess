@@ -15,7 +15,7 @@
 #' chrDfList_bins <- generateBin(ndata = ndata, thread = 4)
 generateBin <- function(ndata, bin = 0.1, slide = 0.05, mslevel = 1, thread = 1){
   sps <- xcms::spectra(ndata) %>% Spectra::filterMsLevel(mslevel)
-  raw <- MSnbase::readMSData(MsExperiment::sampleData(ndata)$sample_path)
+  # raw <- MSnbase::readMSData(MsExperiment::sampleData(ndata)$sample_path)
   # raw <- xcms::xcmsRaw(MsExperiment::sampleData(ndata)$sample_path)
   # fileh <- mzR::openMSfile(MsExperiment::sampleData(ndata)$sample_path, backend = NULL)
   # runInfo <- mzR::runInfo(fileh)
@@ -713,7 +713,10 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
   # plot(x = 1:length(delta_mz), delta_mz)
   # plot(x = 1:length(delta_rt), delta_rt)
 }
-#' @title optParam4xcms
+
+optParam4xcms <- function()
+
+#' @title optParam4xcms_old
 #' @description
 #' Find the optimal xcms parameters
 #'
@@ -757,7 +760,7 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
 #'
 #' @examples
 #' optParam4xcms(data_QC)
-optParam4xcms <- function(data_QC, res_dir = "./",
+optParam4xcms_old <- function(data_QC, res_dir = "./",
                           bin = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 10,
                           smooth = "mean", size = 3, p = 3, etlD = 1, IETH = 10, preNum = 3, sn = 0, loops = 8, tol_m1 = 30, threshold = 1, thread2 = 1, tol_m2 = 40, output_ZOI = FALSE, output_ZOI2 = FALSE,
                           factor = 1, range = 1,massRange = 1, output_ZOI3 = FALSE,
