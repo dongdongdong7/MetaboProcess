@@ -196,6 +196,7 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
   #browser()
   #deltaTime <- mean(diff(chrDf$rt))
   ZOIList <- lapply(1:length(candidateSegInd), function(i) {
+    #print(i)
     idx <- candidateSegInd[[i]]
     idxLength <- length(idx)
     idx1 <- idx[1] - 1
@@ -224,6 +225,7 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
       })
       bottom_idx <- c(1, bottom_idx, length(ZOI$intensity))
       multiZOIList <- lapply(top_idx, function(t) {
+        if(t %in% bottom_idx) return(NULL)
         a_idx <- bottom_idx[bottom_idx < t];a_idx <- a_idx[length(a_idx)]
         b_idx <- bottom_idx[bottom_idx > t];b_idx <- b_idx[1]
         ZOI_t <- ZOI[a_idx:b_idx, ]
@@ -237,7 +239,8 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
   #browser()
   ZOIList <- purrr::list_flatten(ZOIList)
   ZOIList <- ZOIList[sapply(ZOIList, function(x) {
-    sn_tmp <- max(x$intensity) / mean(x$baseline)
+    if(is.null(x)) return(FALSE)
+    sn_tmp <- max(x$intensity) / max(x$baseline)
     if(sn_tmp > sn) return(TRUE)
     else return(FALSE)
   })]
@@ -714,7 +717,72 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
   # plot(x = 1:length(delta_rt), delta_rt)
 }
 
-optParam4xcms <- function()
+#optParam4xcms(data_QC = data_QC)
+optParam4xcms <- function(data_QC, res_dir = "./",
+                          bin = 0.05, slide = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 100,
+                          smoothPara = get_smoothPara(), baselinePara = get_baselinePara(), sn = 3, preNum = 3, tol_m = 10, snthresh = 0.5, thread2 = 1){
+  start_time <- Sys.time()
+  message("You are using optParam4xcms function for ms1!")
+  message("Generate mass bin...")
+  # chrDf_bins_QC <- lapply(1:length(data_QC), function(n) {
+  #   message(paste0("QC ", n, "/", length(data_QC), "\n"))
+  #   ndata <- data_QC[n]
+  #   tmp <- generateBin(ndata = ndata, bin = bin, slide = slide, mslevel = mslevel, thread = thread1)
+  #   return(tmp)
+  # })
+  chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/chrDf_bins_QC.rds")
+  for(n in 1:length(chrDf_bins_QC)){
+    for(m in 1:length(chrDf_bins_QC[[n]])){
+      attributes(chrDf_bins_QC[[n]][[m]])$sample <- n
+    }
+  }
+  # browser()
+  chrDf_bins <- purrr::list_flatten(chrDf_bins_QC)
+  chrDf_bins <- chrDf_bins[which(sapply(chrDf_bins, function(x){
+    if(nrow(x) <= bin_scanNum) return(FALSE)
+    else return(TRUE)
+  }))]
+  message(paste0("You get ", length(chrDf_bins), " bins\n"))
+  if(output_bins){
+    filePath <- paste0(res_dir, "chrDf_bins.rds")
+    saveRDS(chrDf_bins, file = filePath)
+  }
+  message("Generate ZOIs...")
+  i <- 6804
+  bin_test <- chrDf_bins[[i]]
+  bin_test$intensity <- smoothMean(bin_test$intensity)
+  bin_test <- baselineEs(bin_test)
+  plot_chrDf(bin_test, noise = noiseEstimation(bin_test), baseline = TRUE)
+  ZOI <- pickZOI(chrDf = bin_test, smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
+  plot_chrDf(ZOI[[5]], baseline = TRUE)
+  browser()
+  pb <- utils::txtProgressBar(max = length(chrDf_bins), style = 3)
+  if(thread2 == 1){
+    ZOIList <- lapply(1:length(chrDf_bins), function(i) {
+      utils::setTxtProgressBar(pb, i)
+      #print(i)
+      pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
+    })
+  }else if(thread2 > 1){
+    cl <- snow::makeCluster(thread2)
+    doSNOW::registerDoSNOW(cl)
+    opts <- list(progress = function(n) utils::setTxtProgressBar(pb,
+                                                                 n))
+    envir <- environment(pickZOI)
+    parallel::clusterExport(cl, varlist = ls(envir), envir = envir)
+    ZOIList <- foreach::`%dopar%`(foreach::foreach(i = 1:length(chrDf_bins),
+                                                   .options.snow = opts),
+                                  {
+                                    pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
+                                  })
+    snow::stopCluster(cl)
+    gc()
+  }else{
+    stop("wrong thread2!")
+  }
+  ZOIList <- purrr::list_flatten(ZOIList)
+
+}
 
 #' @title optParam4xcms_old
 #' @description
