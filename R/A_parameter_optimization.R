@@ -252,6 +252,43 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
   }
   return(ZOIList)
 }
+
+#' @title ZOIList2ZOITable
+#' @description
+#' Make ZZOIList to ZOITable.
+#'
+#' @param ZOIList ZOIList
+#'
+#' @return ZOITable.
+#'
+#' @examples ZOITable.
+#' ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
+#' ZOITable <- ZOIList2ZOITable(ZOIList)
+ZOIList2ZOITable <- function(ZOIList){
+  #browser()
+  pb <- utils::txtProgressBar(max = length(ZOIList), style = 3)
+  tbList <- lapply(1:length(ZOIList), function(i) {
+    utils::setTxtProgressBar(pb, i)
+    x <- ZOIList[[i]]
+    topIdx <- which.max(x$intensity)
+    mz <- x$mz[topIdx]
+    mzmin <- min(x$mz)
+    mzmax <- max(x$mz)
+    rt <- x$rt[topIdx]
+    rtmin <- min(x$rt)
+    rtmax <- max(x$rt)
+    deltaRt <- (rtmax - rtmin) / nrow(x)
+    into <- sum(x$intensity * deltaRt)
+    intb <- sum((x$intensity - x$baseline) * deltaRt)
+    maxo <- x$intensity[topIdx]
+    sample <- attributes(x)$sample
+    tb <- dplyr::tibble(mz = mz, mzmin = mzmin, mzmax = mzmax, rt = rt, rtmin = rtmin, rtmax = rtmax, into = into, intb = intb, maxo = maxo, sample = sample)
+    return(tb)
+  })
+  ZOITable <- purrr::list_rbind(tbList)
+  return(ZOITable)
+}
+
 #' @title FindZOI
 #' @description
 #' Find ZOIs from a chrDf of the bin.
@@ -722,7 +759,7 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
   # plot(x = 1:length(delta_rt), delta_rt)
 }
 
-#optParam4xcms(data_QC = data_QC)
+#optParam4xcms(data_QC = data_QC, thread2 = 4)
 optParam4xcms <- function(data_QC, res_dir = "./",
                           bin = 0.05, slide = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 100,
                           smoothPara = get_smoothPara(), baselinePara = get_baselinePara(), sn = 3, preNum = 3, tol_m = 10, snthresh = 0.5, thread2 = 1){
@@ -781,6 +818,8 @@ optParam4xcms <- function(data_QC, res_dir = "./",
   #   if(is.null(x)) return(FALSE)
   #   else return(TRUE)
   # })]
+  #browser()
+  #saveRDS(ZOIList, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
   ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
   browser()
   # 需要一个指标来判断峰是不是可以纳入参数计算
