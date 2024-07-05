@@ -8,7 +8,7 @@ pickZOI(
   chrDf,
   smoothPara = get_smoothPara(),
   baselinePara = get_baselinePara(),
-  sn = 1,
+  sn = 3,
   preNum = 3,
   tol_m = 10,
   snthresh = 0.5
