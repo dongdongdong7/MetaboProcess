@@ -898,7 +898,7 @@ optParam4xcms <- function(data_QC, res_dir = "./",
     tmp <- generateBin(ndata = ndata, bin = bin, slide = slide, mslevel = mslevel, thread = thread1)
     return(tmp)
   })
-  chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/chrDf_bins_QC.rds")
+  #chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/chrDf_bins_QC.rds")
   for(n in 1:length(chrDf_bins_QC)){
     for(m in 1:length(chrDf_bins_QC[[n]])){
       attributes(chrDf_bins_QC[[n]][[m]])$sample <- n
