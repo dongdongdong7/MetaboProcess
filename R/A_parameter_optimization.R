@@ -253,6 +253,49 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
   return(ZOIList)
 }
 
+# tightenZOI(chrDf_test)
+tightenZOI <- function(chrDf, dight = 3){
+  #browser()
+  mzVec <- round(chrDf$mz, digits = dight)
+  pointNum <- nrow(chrDf)
+  topIdx <- which.max(chrDf$intensity)
+  startIdx <- topIdx - 2;endIdx <- topIdx + 2
+  if(startIdx < 1) startIdx <- 1
+  if(endIdx > nrow(chrDf)) endIdx <- nrow(chrDf)
+  tmp <- boxplot.stats(mzVec[startIdx:endIdx])$stats
+  LB <- tmp[1];RB <- tmp[5]
+  if(all(mzVec[startIdx:endIdx] > LB | abs(mzVec[startIdx:endIdx] - LB)<exp(-30)) & all(mzVec[startIdx:endIdx] < RB | abs(mzVec[startIdx:endIdx] - RB)<exp(-30))){
+    startIdx <- startIdx - 1
+    while(startIdx >= 1){
+      tmp <- boxplot.stats(mzVec[startIdx:endIdx])$stats
+      LB <- tmp[1];RB <- tmp[5]
+      if((mzVec[startIdx] > LB | abs(mzVec[startIdx] - LB) < exp(-30)) & (mzVec[startIdx] < RB | abs(mzVec[startIdx] - RB) < exp(-30))){
+        startIdx <- startIdx - 1
+      }else{
+        startIdx <- startIdx + 1
+        break
+      }
+    }
+    if(startIdx < 1) startIdx <- 1
+    endIdx <- endIdx + 1
+    while(endIdx <= pointNum){
+      tmp <- boxplot.stats(mzVec[startIdx:endIdx])$stats
+      LB <- tmp[1];RB <- tmp[5]
+      if((mzVec[endIdx] > LB | abs(mzVec[endIdx] - LB) < exp(-30)) & (mzVec[endIdx] < RB | abs(mzVec[endIdx] - RB) < exp(-30))){
+        endIdx <- endIdx + 1
+      }else{
+        endIdx <- endIdx - 1
+        break
+      }
+    }
+    if(endIdx > pointNum) endIdx <- pointNum
+  }else{
+    chrDf <- NULL
+  }
+  chrDf <- chrDf[startIdx:endIdx, ]
+  return(chrDf)
+}
+
 #' @title ZOIList2ZOITable
 #' @description
 #' Make ZZOIList to ZOITable.
@@ -281,12 +324,71 @@ ZOIList2ZOITable <- function(ZOIList){
     into <- sum(x$intensity * deltaRt)
     intb <- sum((x$intensity - x$baseline) * deltaRt)
     maxo <- x$intensity[topIdx]
+    sn <- maxo / max(x$baseline)
     sample <- attributes(x)$sample
-    tb <- dplyr::tibble(mz = mz, mzmin = mzmin, mzmax = mzmax, rt = rt, rtmin = rtmin, rtmax = rtmax, into = into, intb = intb, maxo = maxo, sample = sample)
+    tb <- dplyr::tibble(cpid = paste0("CP", i),mz = mz, mzmin = mzmin, mzmax = mzmax, rt = rt, rtmin = rtmin, rtmax = rtmax, into = into, intb = intb, maxo = maxo, sn = sn, sample = sample, ms_level = 1, is_filled = FALSE)
     return(tb)
   })
   ZOITable <- purrr::list_rbind(tbList)
   return(ZOITable)
+}
+
+#' @title FindIso
+#' @description
+#' Find isotopes from ZOI.
+#'
+#' @param ZOITable ZOITable.
+#' @param data_QC data_QC.
+#' @param thread thread.
+#'
+#' @return A ISOTable.
+#' @export
+#'
+#' @examples
+#' isoTable <- FindIso(ZOITable, data_QC, thread = 3)
+FindIso <- function(ZOITable, data_QC, thread = 3){
+  #browser()
+  pb <- utils::txtProgressBar(max = length(data_QC), style = 3)
+  if(thread == 1){
+    isoList <- lapply(1:length(data_QC), function(i) {
+      utils::setTxtProgressBar(pb, i)
+      data <- data_QC[i]
+      pd <- MsExperiment::sampleData(data)
+      set <- xcms::xcmsSet(files = pd$sample_path, phenoData = as.data.frame(pd), mslevel = 1L, BPPARAM = BiocParallel::SerialParam())
+      chromPeaks_new <- as.matrix(ZOITable[which(ZOITable$sample == i), 2:12])
+      rownames(chromPeaks_new) <- ZOITable[which(ZOITable$sample == i), ]$cpid
+      set@peaks <- chromPeaks_new
+      set.seed(2)
+      ex.cliqueGroups <- cliqueMS::getCliques(set, filter = TRUE)
+      ex.Isotopes <- cliqueMS::getIsotopes(ex.cliqueGroups, ppm = 10)
+      isoTable <- ex.Isotopes@peaklist[stringr::str_detect(ex.Isotopes@peaklist$isotope, "\\[*\\]"), ]
+      return(isoTable)
+    })
+  }else if(thread > 1){
+    cl <- snow::makeCluster(thread)
+    doSNOW::registerDoSNOW(cl)
+    opts <- list(progress = function(n) utils::setTxtProgressBar(pb,
+                                                                 n))
+    isoList <- foreach::`%dopar%`(foreach::foreach(i = 1:length(data_QC),
+                                                   .packages = c("MsExperiment", "cliqueMS", "xcms", "stringr", "BiocParallel"),
+                                                   .options.snow = opts), {
+                                                     data <- data_QC[i]
+                                                     pd <- MsExperiment::sampleData(data)
+                                                     set <- xcms::xcmsSet(files = pd$sample_path, phenoData = as.data.frame(pd), mslevel = 1L, BPPARAM = BiocParallel::SerialParam())
+                                                     chromPeaks_new <- as.matrix(ZOITable[which(ZOITable$sample == i), 2:12])
+                                                     rownames(chromPeaks_new) <- ZOITable[which(ZOITable$sample == i), ]$cpid
+                                                     set@peaks <- chromPeaks_new
+                                                     set.seed(2)
+                                                     ex.cliqueGroups <- cliqueMS::getCliques(set, filter = TRUE)
+                                                     ex.Isotopes <- cliqueMS::getIsotopes(ex.cliqueGroups, ppm = 10)
+                                                     isoTable <- ex.Isotopes@peaklist[stringr::str_detect(ex.Isotopes@peaklist$isotope, "\\[*\\]"), ]
+                                                     return(isoTable)
+                                                   })
+    snow::stopCluster(cl)
+    gc()
+  }
+  isoTable <- purrr::list_rbind(isoList)
+  return(isoTable)
 }
 
 #' @title FindZOI
@@ -759,81 +861,149 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
   # plot(x = 1:length(delta_rt), delta_rt)
 }
 
-#optParam4xcms(data_QC = data_QC, thread2 = 4)
+#' @title optParam4xcms
+#' @description
+#' optParam4xcms.
+#'
+#' @param data_QC A MsExperiment object which contains QC sample.
+#' @param res_dir Results path.
+#' @param bin bin size.
+#' @param slide slide size.
+#' @param mslevel mslevel.
+#' @param thread1 thread1.
+#' @param output_bins Whether to output bins.
+#' @param bin_scanNum bin's scanNum threshold.
+#' @param smoothPara smoothPrar.
+#' @param baselinePara baselinePara
+#' @param sn sn
+#' @param preNum preNum.
+#' @param tol_m tol_m.
+#' @param snthresh snthresh.
+#' @param thread2 thread2.
+#'
+#' @return A parameter vector.
+#' @export
+#'
+#' @examples
+#' optParam4xcms(data_QC = data_QC, thread2 = 4)
 optParam4xcms <- function(data_QC, res_dir = "./",
                           bin = 0.05, slide = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 100,
                           smoothPara = get_smoothPara(), baselinePara = get_baselinePara(), sn = 3, preNum = 3, tol_m = 10, snthresh = 0.5, thread2 = 1){
   start_time <- Sys.time()
   message("You are using optParam4xcms function for ms1!")
   message("Generate mass bin...")
-  # chrDf_bins_QC <- lapply(1:length(data_QC), function(n) {
-  #   message(paste0("QC ", n, "/", length(data_QC), "\n"))
-  #   ndata <- data_QC[n]
-  #   tmp <- generateBin(ndata = ndata, bin = bin, slide = slide, mslevel = mslevel, thread = thread1)
-  #   return(tmp)
-  # })
-  # chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/chrDf_bins_QC.rds")
-  # for(n in 1:length(chrDf_bins_QC)){
-  #   for(m in 1:length(chrDf_bins_QC[[n]])){
-  #     attributes(chrDf_bins_QC[[n]][[m]])$sample <- n
-  #   }
-  # }
-  # chrDf_bins <- purrr::list_flatten(chrDf_bins_QC)
-  # chrDf_bins <- chrDf_bins[which(sapply(chrDf_bins, function(x){
-  #   if(nrow(x) <= bin_scanNum) return(FALSE)
-  #   else return(TRUE)
-  # }))]
-  # message(paste0("You get ", length(chrDf_bins), " bins\n"))
-  # if(output_bins){
-  #   filePath <- paste0(res_dir, "chrDf_bins.rds")
-  #   saveRDS(chrDf_bins, file = filePath)
-  # }
-  # message("Generate ZOIs...") # i 6804
-  # pb <- utils::txtProgressBar(max = length(chrDf_bins), style = 3)
-  # if(thread2 == 1){
-  #   ZOIList <- lapply(1:length(chrDf_bins), function(i) {
-  #     utils::setTxtProgressBar(pb, i)
-  #     #print(i)
-  #     pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
-  #   })
-  # }else if(thread2 > 1){
-  #   cl <- snow::makeCluster(thread2)
-  #   doSNOW::registerDoSNOW(cl)
-  #   opts <- list(progress = function(n) utils::setTxtProgressBar(pb,
-  #                                                                n))
-  #   envir <- environment(pickZOI)
-  #   parallel::clusterExport(cl, varlist = ls(envir), envir = envir)
-  #   ZOIList <- foreach::`%dopar%`(foreach::foreach(i = 1:length(chrDf_bins),
-  #                                                  .options.snow = opts),
-  #                                 {
-  #                                   pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
-  #                                 })
-  #   snow::stopCluster(cl)
-  #   gc()
-  # }else{
-  #   stop("wrong thread2!")
-  # }
-  # ZOIList <- purrr::list_flatten(ZOIList)
-  # ZOIList <- ZOIList[sapply(ZOIList, function(x) {
-  #   if(is.null(x)) return(FALSE)
-  #   else return(TRUE)
-  # })]
+  chrDf_bins_QC <- lapply(1:length(data_QC), function(n) {
+    message(paste0("QC ", n, "/", length(data_QC), "\n"))
+    ndata <- data_QC[n]
+    tmp <- generateBin(ndata = ndata, bin = bin, slide = slide, mslevel = mslevel, thread = thread1)
+    return(tmp)
+  })
+  chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/chrDf_bins_QC.rds")
+  for(n in 1:length(chrDf_bins_QC)){
+    for(m in 1:length(chrDf_bins_QC[[n]])){
+      attributes(chrDf_bins_QC[[n]][[m]])$sample <- n
+    }
+  }
+  chrDf_bins <- purrr::list_flatten(chrDf_bins_QC)
+  chrDf_bins <- chrDf_bins[which(sapply(chrDf_bins, function(x){
+    if(nrow(x) <= bin_scanNum) return(FALSE)
+    else return(TRUE)
+  }))]
+  message(paste0("You get ", length(chrDf_bins), " bins\n"))
+  if(output_bins){
+    filePath <- paste0(res_dir, "chrDf_bins.rds")
+    saveRDS(chrDf_bins, file = filePath)
+  }
+  message("Generate ZOIs...") # i 6804
+  pb <- utils::txtProgressBar(max = length(chrDf_bins), style = 3)
+  if(thread2 == 1){
+    ZOIList <- lapply(1:length(chrDf_bins), function(i) {
+      utils::setTxtProgressBar(pb, i)
+      #print(i)
+      pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
+    })
+  }else if(thread2 > 1){
+    cl <- snow::makeCluster(thread2)
+    doSNOW::registerDoSNOW(cl)
+    opts <- list(progress = function(n) utils::setTxtProgressBar(pb,
+                                                                 n))
+    envir <- environment(pickZOI)
+    parallel::clusterExport(cl, varlist = ls(envir), envir = envir)
+    ZOIList <- foreach::`%dopar%`(foreach::foreach(i = 1:length(chrDf_bins),
+                                                   .options.snow = opts),
+                                  {
+                                    pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
+                                  })
+    snow::stopCluster(cl)
+    gc()
+  }else{
+    stop("wrong thread2!")
+  }
+  ZOIList <- purrr::list_flatten(ZOIList)
+  ZOIList <- ZOIList[sapply(ZOIList, function(x) {
+    if(is.null(x)) return(FALSE)
+    else return(TRUE)
+  })]
   #browser()
   #saveRDS(ZOIList, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
-  ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
-  browser()
-  # 需要一个指标来判断峰是不是可以纳入参数计算
-  message("Calculate parameters...")
-  massTolVec <- sapply(ZOIList, function(x) {cal_massTol(chrDf = x, factor = 1, range = 1)})
+  #ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
+  ZOIList <- lapply(ZOIList, function(x) tightenZOI(x, dight = 3))
+  ZOIList <- ZOIList[sapply(ZOIList, function(x) !is.null(x))]
+  massTolVec <- sapply(ZOIList, function(x) {cal_massTol(chrDf = x, factor = 2, range = 1)})
+  massTol_s <- sort(massTolVec)[round(length(massTolVec) * 0.95)]
   peakWidthVec <- sapply(1:length(ZOIList), function(i) {
     chrDf <- ZOIList[[i]]
     peakWidth <- max(chrDf$rt) - min(chrDf$rt)
     return(peakWidth)
   })
-  massTol_s <- boxplot.stats(massTolVec)$stats[5]
-  peakWidth_s_min <- boxplot.stats(peakWidthVec)$stats[1]
-  peakWidth_s_max <- boxplot.stats(peakWidthVec)$stats[5]
-  plot_chrDf(ZOIList[[which(peakWidthVec > peakWidth_s_max)[13]]], baseline = TRUE)
+  peakWidth_s_min <- sort(peakWidthVec)[round(length(peakWidthVec) * 0.025)]
+  peakWidth_s_max <- sort(peakWidthVec)[round(length(peakWidthVec) * 0.975)]
+  ZOIList <- ZOIList[massTolVec <= massTol_s & peakWidthVec >= peakWidth_s_min & peakWidthVec <= peakWidth_s_max]
+  message("You are generating a ZOITable...")
+  ZOITable <- ZOIList2ZOITable(ZOIList)
+  #saveRDS(ZOITable, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOITable.rds")
+  #ZOITable <-readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOITable.rds")
+  message("You are finding isotopic peak...")
+  isoTable <- FindIso(ZOITable, data_QC, thread = 3)
+  #saveRDS(isoTable, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/isoTable.rds")
+  #isoTable <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/isoTable.rds")
+  ZOIList_new <- ZOIList[as.integer(stringr::str_replace(rownames(isoTable), "CP", ""))]
+  # 需要一个指标来判断峰是不是可以纳入参数计算
+  message("Calculate parameters...")
+  massTolVec <- sapply(ZOIList_new, function(x) {cal_massTol(chrDf = x, factor = 2, range = 1)})
+  #plot(x = 1:length(massTolVec), y = massTolVec)
+  peakWidthVec <- sapply(1:length(ZOIList_new), function(i) {
+    chrDf <- ZOIList_new[[i]]
+    peakWidth <- max(chrDf$rt) - min(chrDf$rt)
+    return(peakWidth)
+  })
+  #plot(x = 1:length(peakWidthVec), y = peakWidthVec)
+  peakWidth_min <- min(peakWidthVec)
+  peakWidth_max <- max(peakWidthVec)
+  tol_ppm <- max(massTolVec)
+  noiseVec <- sapply(1:length(ZOIList_new), function(i) {
+    chrDf <- ZOIList_new[[i]]
+    noise <- chrDf$baseline[which.max(chrDf$intensity)]
+    return(noise)
+  })
+  noise <- min(noiseVec)
+  intVec <- sapply(1:length(ZOIList_new), function(i) {
+    chrDf <- ZOIList_new[[i]]
+    int <- max(chrDf$intensity)
+    return(int)
+  })
+  snVec <- intVec / noiseVec
+  sn <- min(snVec)
+  preNumVec <- sapply(1:length(ZOIList_new), function(i) {
+    chrDf <- ZOIList_new[[i]]
+    return(nrow(chrDf))
+  })
+  preNum <- min(preNumVec)
+  shiftParam <- cal_shift(chrDfList = ZOIList_new, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", range = 1)
+  end_time <- Sys.time()
+  print(end_time - start_time)
+  return(c(ppm = tol_ppm, noise = noise, sn = sn, preNum = preNum, peakWidth_min = peakWidth_min, peakWidth_max = peakWidth_max,
+           shiftParam))
 }
 
 #' @title optParam4xcms_old

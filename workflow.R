@@ -36,6 +36,7 @@ xcms::spectra(data) %>%
   Spectra::spectraData(c("isolationWindowTargetMz", "isolationWindowLowerMz",
                 "isolationWindowUpperMz", "msLevel", "rtime"))
 MsExperiment::sampleData(data)
+data_QC <- data[which(pd$sample_type == "QC")]
 # CentWave parameter optimization
 # (1) Noise estimation
 #chrDf_bins <- generateBin(ndata = ndata, bin = 0.05, mslevel = 1, thread = 24)
