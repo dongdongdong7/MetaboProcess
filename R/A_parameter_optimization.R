@@ -13,44 +13,25 @@
 #'
 #' @examples
 #' chrDfList_bins <- generateBin(ndata = ndata, thread = 4)
-generateBin <- function(ndata, bin = 0.1, slide = 0.05, mslevel = 1, thread = 1){
+generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1){
+  start_time <- Sys.time()
   sps <- xcms::spectra(ndata) %>% Spectra::filterMsLevel(mslevel)
-  # raw <- MSnbase::readMSData(MsExperiment::sampleData(ndata)$sample_path)
-  # raw <- xcms::xcmsRaw(MsExperiment::sampleData(ndata)$sample_path)
-  # fileh <- mzR::openMSfile(MsExperiment::sampleData(ndata)$sample_path, backend = NULL)
-  # runInfo <- mzR::runInfo(fileh)
-  # mzR::close(fileh);rm(fileh)
-  # if(is.na(lowMz)) lowMz <- runInfo$lowMz
-  # if(is.na(highMz)) highMz <- runInfo$highMz
   lowMz <- round(min(sapply(Spectra::mz(sps), min)))
   highMz <- round(max(sapply(Spectra::mz(sps), max)))
-  rtSps <- Spectra::rtime(sps)
-  peaksData <- Spectra::peaksData(sps)
+  mzData <- Spectra::mz(sps)
+  intData <- Spectra::intensity(sps)
+  rtime <- Spectra::rtime(sps)
   mzS <- seq(lowMz, highMz - bin, by = slide)
   mzE <- seq(lowMz + bin, highMz, by = slide)
   maxN <- max(c(length(mzS), length(mzE)))
-  #mzRange <-seq(lowMz, highMz, by = bin)
-  #mzIter <- lapply(1:(length(mzRange) - 1), function(i) {c(mzRange[i], mzRange[i + 1])})
   mzIter <- lapply(1:maxN, function(i) {c(mzS[i], mzE[i])})
-  #browser()
-  loop <- function(x){
-    mz_range <- x
-    chrDf <- purrr::list_rbind(lapply(1:length(peaksData), function(j) {
-      if(is.matrix(peaksData[[j]])) peakMat <- peaksData[[j]]
-      else if(is.vector(peaksData[[j]])){
-        peakMat <- matrix(peaksData[[j]], ncol = 2, dimnames = list(NULL, c("mz", "intensity")))
-        warnings("peaksData is a vector!")
-      }else{
-        stop("peaksData is wrong!")
-      }
-      idx <- which(peakMat[, "mz"] >= mz_range[1] & peakMat[, "mz"] <= mz_range[2])
-      if(length(idx) == 0) return(NULL)
-      #mz <- mean(peakMat[idx,"mz"])
-      mz <- peakMat[idx, "mz"][which.max(peakMat[idx,"intensity"])]
-      intensity <- max(peakMat[idx,"intensity"])
-      peakDf <- dplyr::tibble(mz = mz, intensity = intensity)
-      peakDf$rt <- rtSps[j]
-      return(peakDf)
+  loop <- function(i){
+    currmzRange <- mzIter[[i]]
+    chrDf <- purrr::list_rbind(lapply(1:length(mzData), function(j) {
+      index <- which(mzData[[j]] >= currmzRange[1] & mzData[[j]] < currmzRange[2])
+      if(length(index) == 0){mz <- NA;intensity <- 0;rt <- rtime[j]}
+      else{mz <- mzData[[j]][index][which.max(intData[[j]][index])];intensity <- max(intData[[j]][index]);rt <- rtime[j]}
+      return(dplyr::tibble(mz = mz, intensity = intensity, rt = rt))
     }))
     return(chrDf)
   }
@@ -58,70 +39,16 @@ generateBin <- function(ndata, bin = 0.1, slide = 0.05, mslevel = 1, thread = 1)
   if(thread == 1){
     chrDfList <- lapply(1:length(mzIter), function(i) {
       utils::setTxtProgressBar(pb, i)
-      x <- mzIter[[i]]
-      loop(x)
+      loop(i)
     })
   }else if(thread > 1){
     chrDfList <- BiocParallel::bplapply(1:length(mzIter), function(i) {
-      x <- mzIter[[i]]
-      loop(x)
+      loop(i)
     }, BPPARAM = BiocParallel::SnowParam(workers = thread,
                                          progressbar = TRUE))
   }else stop("Thread is wrong!")
-  return(chrDfList)
-}
-#' @title generateBin_old
-#' @description
-#' Divide a sample into multiple chromatograms according to the length of the bin.
-#'
-#' @param ndata nth sample data, it is a MsExperiment object.
-#' @param bin bin mz.
-#' @param mslevel mslevel, 1 or 2.
-#' @param thread Number of threads in parallel.
-#'
-#' @return A list consisting of chrDf.
-#'
-#' @examples
-#' chrDf_bins <- generateBin(ndata = ndata, bin = 0.05, mslevel = 1, thread = 24)
-generateBin_old <- function(ndata, bin = 0.05, mslevel = 1, thread = 1){
-  sps <- xcms::spectra(ndata) %>% Spectra::filterMsLevel(mslevel)
-  fileh <- mzR::openMSfile(MsExperiment::sampleData(ndata)$sample_path, backend = NULL)
-  runInfo <- mzR::runInfo(fileh)
-  mzR::close(fileh);rm(fileh)
-  lowMz <- runInfo$lowMz;highMz <- runInfo$highMz
-  rtSps <- Spectra::rtime(sps)
-  peaksData <- Spectra::peaksData(sps)
-  mzRange <-seq(lowMz, highMz, by = bin)
-  mzIter <- lapply(1:(length(mzRange) - 1), function(i) {c(mzRange[i], mzRange[i + 1])})
-  loop <- function(x){
-    mz_range <- x
-    chrDf <- purrr::list_rbind(lapply(1:length(peaksData), function(j) {
-      peakMat <- peaksData[[j]]
-      idx <- which(peakMat[, "mz"] >= mz_range[1] & peakMat[, "mz"] <= mz_range[2])
-      if(length(idx) == 0) return(NULL)
-      #mz <- mean(peakMat[idx,"mz"])
-      mz <- peakMat[idx, "mz"][which.max(peakMat[idx,"intensity"])]
-      intensity <- max(peakMat[idx,"intensity"])
-      peakDf <- dplyr::tibble(mz = mz, intensity = intensity)
-      peakDf$rt <- rtSps[j]
-      return(peakDf)
-    }))
-    return(chrDf)
-  }
-  pb <- utils::txtProgressBar(max = length(mzIter), style = 3)
-  if(thread == 1){
-    chrDfList <- lapply(1:length(mzIter), function(i) {
-      utils::setTxtProgressBar(pb, i)
-      x <- mzIter[[i]]
-      loop(x)
-    })
-  }else if(thread > 1){
-    chrDfList <- BiocParallel::bplapply(1:length(mzIter), function(i) {
-      x <- mzIter[[i]]
-      loop(x)
-    }, BPPARAM = BiocParallel::SnowParam(workers = thread,
-                                         progressbar = TRUE))
-  }else stop("Thread is wrong!")
+  end_time <- Sys.time()
+  print(end_time - start_time)
   return(chrDfList)
 }
 
@@ -294,6 +221,22 @@ tightenZOI <- function(chrDf, dight = 3){
   }
   chrDf <- chrDf[startIdx:endIdx, ]
   return(chrDf)
+}
+checkShapeZOI <- function(chrDf, fwhm = NA,snthresh = 1){
+  #browser()
+  if(is.na(fwhm)) fwhm <- round((max(chrDf$rt) - min(chrDf$rt)))
+  tmp <- xcms::peaksWithMatchedFilter(int = chrDf$intensity, rt = chrDf$rt, fwhm = fwhm, snthresh = snthresh)
+  if(nrow(tmp) == 0) return(NULL)
+  else{
+    # if(nrow(tmp) > 1){
+    #   tmp <- tmp[which.max(tmp[, "maxo"]), ]
+    # }
+    # rtmin <- tmp[, "rtmin"];rtmax <- tmp[, "rtmax"]
+    # start_idx <- which.min(abs(chrDf$rt - rtmin))
+    # end_idx <- which.min(abs(chrDf$rt - rtmax))
+    # chrDf <- chrDf[start_idx:end_idx, ]
+    return(chrDf)
+  }
 }
 
 #' @title ZOIList2ZOITable
@@ -888,7 +831,8 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
 #' optParam4xcms(data_QC = data_QC, thread2 = 4)
 optParam4xcms <- function(data_QC, res_dir = "./",
                           bin = 0.05, slide = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 100,
-                          smoothPara = get_smoothPara(), baselinePara = get_baselinePara(), sn = 3, preNum = 3, tol_m = 10, snthresh = 0.5, thread2 = 1){
+                          smoothPara = get_smoothPara(), baselinePara = get_baselinePara(), sn = 3, preNum = 3, tol_m = 10, snthresh = 0.5, thread2 = 1,
+                          maxMassTol = 100, minPeakWidth = 3, maxPeakWidth = 100,thread3 = 1){
   start_time <- Sys.time()
   message("You are using optParam4xcms function for ms1!")
   message("Generate mass bin...")
@@ -945,45 +889,55 @@ optParam4xcms <- function(data_QC, res_dir = "./",
     else return(TRUE)
   })]
   #browser()
-  #saveRDS(ZOIList, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
-  #ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOIList.rds")
+  #saveRDS(ZOIList, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/optParam/240708/ZOIList.rds")
+  #ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/optParam/240708/ZOIList.rds")
   ZOIList <- lapply(ZOIList, function(x) tightenZOI(x, dight = 3))
   ZOIList <- ZOIList[sapply(ZOIList, function(x) !is.null(x))]
+  # ZOIList <- lapply(ZOIList, function(x) checkShapeZOI(x, snthresh = 3))
+  # ZOIList <- ZOIList[sapply(ZOIList, function(x) !is.null(x))]
   massTolVec <- sapply(ZOIList, function(x) {cal_massTol(chrDf = x, factor = 2, range = 1)})
-  massTol_s <- sort(massTolVec)[round(length(massTolVec) * 0.95)]
+  plot(1:length(massTolVec), massTolVec)
   peakWidthVec <- sapply(1:length(ZOIList), function(i) {
     chrDf <- ZOIList[[i]]
     peakWidth <- max(chrDf$rt) - min(chrDf$rt)
     return(peakWidth)
   })
-  peakWidth_s_min <- sort(peakWidthVec)[round(length(peakWidthVec) * 0.025)]
-  peakWidth_s_max <- sort(peakWidthVec)[round(length(peakWidthVec) * 0.975)]
-  ZOIList <- ZOIList[massTolVec <= massTol_s & peakWidthVec >= peakWidth_s_min & peakWidthVec <= peakWidth_s_max]
+  plot(1:length(peakWidthVec), peakWidthVec)
+  ZOIList <- ZOIList[massTolVec <= maxMassTol & peakWidthVec >= minPeakWidth & peakWidthVec <= maxPeakWidth]
   message("You are generating a ZOITable...")
   ZOITable <- ZOIList2ZOITable(ZOIList)
   #saveRDS(ZOITable, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOITable.rds")
   #ZOITable <-readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOITable.rds")
   message("You are finding isotopic peak...")
-  isoTable <- FindIso(ZOITable, data_QC, thread = 3)
+  isoTable <- FindIso(ZOITable, data_QC, thread = 5)
   #saveRDS(isoTable, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/isoTable.rds")
   #isoTable <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/isoTable.rds")
   ZOIList_new <- ZOIList[as.integer(stringr::str_replace(rownames(isoTable), "CP", ""))]
   # 需要一个指标来判断峰是不是可以纳入参数计算
   message("Calculate parameters...")
   massTolVec <- sapply(ZOIList_new, function(x) {cal_massTol(chrDf = x, factor = 2, range = 1)})
-  #plot(x = 1:length(massTolVec), y = massTolVec)
+  # plot(x = 1:length(massTolVec), y = sort(massTolVec))
+  # plot(x = 1:length(diff(sort(massTolVec))), y = diff(sort(massTolVec)))
+  tmp <- diff(sort(massTolVec))
+  #sqrt(sum((massTolVec - median(massTolVec))^2) / (length(massTolVec) - 1))
+  idx <- which(tmp > 2)[1]
+  massTol_s <- mean(sort(massTolVec)[c(idx - 1, idx, idx + 1)])
   peakWidthVec <- sapply(1:length(ZOIList_new), function(i) {
     chrDf <- ZOIList_new[[i]]
     peakWidth <- max(chrDf$rt) - min(chrDf$rt)
     return(peakWidth)
   })
-  #plot(x = 1:length(peakWidthVec), y = peakWidthVec)
-  peakWidth_min <- min(peakWidthVec)
-  peakWidth_max <- max(peakWidthVec)
-  tol_ppm <- max(massTolVec)
+  tmp <- hist(peakWidthVec, 100, plot = FALSE)
+  for(i in 1:length(tmp$density)){
+    if(sum(tmp$density[order(tmp$density, decreasing = TRUE)[1:i]]) > 0.95) break
+  }
+  delta <- (tmp$mids[2] - tmp$mids[1]) / 2
+  peakWidth_s_min <- min(tmp$mids[order(tmp$density, decreasing = TRUE)[1:i]]) - delta
+  peakWidth_s_max <- max(tmp$mids[order(tmp$density, decreasing = TRUE)[1:i]]) + delta
+  ZOIList_new <- ZOIList_new[massTolVec <= massTol_s & peakWidthVec >= peakWidth_s_min & peakWidthVec <= peakWidth_s_max]
   noiseVec <- sapply(1:length(ZOIList_new), function(i) {
     chrDf <- ZOIList_new[[i]]
-    noise <- chrDf$baseline[which.max(chrDf$intensity)]
+    noise <- min(chrDf$baseline)
     return(noise)
   })
   noise <- min(noiseVec)
@@ -993,6 +947,7 @@ optParam4xcms <- function(data_QC, res_dir = "./",
     return(int)
   })
   snVec <- intVec / noiseVec
+  plot(1:length(snVec), sort(snVec))
   sn <- min(snVec)
   preNumVec <- sapply(1:length(ZOIList_new), function(i) {
     chrDf <- ZOIList_new[[i]]
@@ -1002,6 +957,12 @@ optParam4xcms <- function(data_QC, res_dir = "./",
   shiftParam <- cal_shift(chrDfList = ZOIList_new, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", range = 1)
   end_time <- Sys.time()
   print(end_time - start_time)
+  i <- 24
+  plot_chrDf(ZOIList_new[[which(peakWidthVec > 2)[i]]])
+  xcms::peaksWithMatchedFilter(int = ZOIList_new[[which(peakWidthVec > 2)[i]]]$intensity,
+                               rt = ZOIList_new[[which(peakWidthVec > 2)[i]]]$rt,
+                               fwhm = 3,
+                               snthresh = 1)
   return(c(ppm = tol_ppm, noise = noise, sn = sn, preNum = preNum, peakWidth_min = peakWidth_min, peakWidth_max = peakWidth_max,
            shiftParam))
 }

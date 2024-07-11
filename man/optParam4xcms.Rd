@@ -19,7 +19,11 @@ optParam4xcms(
   preNum = 3,
   tol_m = 10,
   snthresh = 0.5,
-  thread2 = 1
+  thread2 = 1,
+  maxMassTol = 100,
+  minPeakWidth = 3,
+  maxPeakWidth = 100,
+  thread3 = 1
 )
 }
 \arguments{
