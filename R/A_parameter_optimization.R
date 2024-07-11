@@ -12,6 +12,21 @@
 #' @export
 #'
 #' @examples
+#' file_dir <- "D:/fudan/Projects/2024/MetaboProcess/Data/SRM 1950 MassIVE MSV000083469/"
+#' patterns <- c(".mzXML", ".mzxml", ".mzML", ".mzml")
+#' patterns <- paste0(patterns, collapse = "|")
+#' file_path <- list.files(file_dir, pattern = patterns)
+#' file_path <- paste0(file_dir, file_path)
+#' pd <- data.frame(sample_name = sub(basename(file_path), pattern = patterns,
+#'                                    replacement = ""),
+#'                  sample_group = rep("QC", 5),
+#'                  sample_type = rep("QC", 5),
+#'                  sample_inject = c(1, 3, 4, 5, 2),
+#'                  sample_path = file_path,
+#'                  stringsAsFactors = FALSE)
+#' pd <- dplyr::arrange(pd, sample_inject)
+#' data <- MsExperiment::readMsExperiment(pd$sample_path, sampleData = pd)
+#' ndata <- data[1]
 #' chrDfList_bins <- generateBin(ndata = ndata, thread = 4)
 generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1){
   start_time <- Sys.time()
@@ -27,12 +42,21 @@ generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1
   mzIter <- lapply(1:maxN, function(i) {c(mzS[i], mzE[i])})
   loop <- function(i){
     currmzRange <- mzIter[[i]]
-    chrDf <- purrr::list_rbind(lapply(1:length(mzData), function(j) {
+    indexList <- lapply(1:length(mzData), function(j){
       index <- which(mzData[[j]] >= currmzRange[1] & mzData[[j]] < currmzRange[2])
-      if(length(index) == 0){mz <- NA;intensity <- 0;rt <- rtime[j]}
-      else{mz <- mzData[[j]][index][which.max(intData[[j]][index])];intensity <- max(intData[[j]][index]);rt <- rtime[j]}
-      return(dplyr::tibble(mz = mz, intensity = intensity, rt = rt))
-    }))
+      index <- index[which.max(intData[[j]][index])]
+    })
+    intVec <- sapply(1:length(intData), function(j){
+      int <- intData[[j]][indexList[[j]]]
+      if(length(int) == 0) return(0)
+      else return(int)
+    })
+    mzVec <- sapply(1:length(mzData), function(j) {
+      mz <- mzData[[j]][indexList[[j]]]
+      if(length(mz) == 0) return(NA)
+      else return(mz)
+    })
+    chrDf <- dplyr::tibble(mz = mzVec, intensity = intVec, rt = rtime)
     return(chrDf)
   }
   pb <- utils::txtProgressBar(max = length(mzIter), style = 3)

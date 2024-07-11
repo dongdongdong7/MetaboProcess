@@ -24,5 +24,20 @@ A chrDf list.
 Divide a sample into multiple chromatograms according to the length of the bin.
 }
 \examples{
+file_dir <- "D:/fudan/Projects/2024/MetaboProcess/Data/SRM 1950 MassIVE MSV000083469/"
+patterns <- c(".mzXML", ".mzxml", ".mzML", ".mzml")
+patterns <- paste0(patterns, collapse = "|")
+file_path <- list.files(file_dir, pattern = patterns)
+file_path <- paste0(file_dir, file_path)
+pd <- data.frame(sample_name = sub(basename(file_path), pattern = patterns,
+                                   replacement = ""),
+                 sample_group = rep("QC", 5),
+                 sample_type = rep("QC", 5),
+                 sample_inject = c(1, 3, 4, 5, 2),
+                 sample_path = file_path,
+                 stringsAsFactors = FALSE)
+pd <- dplyr::arrange(pd, sample_inject)
+data <- MsExperiment::readMsExperiment(pd$sample_path, sampleData = pd)
+ndata <- data[1]
 chrDfList_bins <- generateBin(ndata = ndata, thread = 4)
 }
