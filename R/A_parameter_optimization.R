@@ -188,10 +188,12 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
         b_idx <- bottom_idx[bottom_idx > t];b_idx <- b_idx[1]
         ZOI_t <- ZOI[a_idx:b_idx, ]
         ZOI_t <- edgeTrack_crude(ZOI_t, preNum = preNum, tol_m = tol_m)
+        return(ZOI_t)
       })
       return(multiZOIList)
     }else{ # Single peak
       ZOI <- edgeTrack_crude(ZOI, preNum = preNum, tol_m = tol_m)
+      return(ZOI)
     }
   })
   #browser()
@@ -205,6 +207,8 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
   if(length(ZOIList) == 0) return(NULL)
   for(i in 1:length(ZOIList)){
     attributes(ZOIList[[i]])$sample <- sampleIdx
+    attributes(ZOIList[[i]])$noise0 <- noise0
+    attributes(ZOIList[[i]])$preNum <- length(which(ZOIList[[i]]$intensity > noise0))
   }
   return(ZOIList)
 }
@@ -212,6 +216,50 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
 # tightenZOI(chrDf_test)
 tightenZOI <- function(chrDf, dight = 3){
   #browser()
+  fill_na_with_mean <- function(vec) {
+    # 获取向量的长度
+    n <- length(vec)
+
+    # 遍历向量中的每个元素
+    for (i in 1:n) {
+      # 如果当前元素是NA
+      if (is.na(vec[i])) {
+        # 找到前一个非NA值
+        forward <- NA
+        if (i > 1) {
+          for (j in (i-1):1) {
+            if (!is.na(vec[j])) {
+              forward <- vec[j]
+              break
+            }
+          }
+        }
+
+        # 找到后一个非NA值
+        backward <- NA
+        if (i < n) {
+          for (j in (i+1):n) {
+            if (!is.na(vec[j])) {
+              backward <- vec[j]
+              break
+            }
+          }
+        }
+
+        # 计算前后两个非NA值的平均值，并填充当前的NA
+        if (!is.na(forward) && !is.na(backward)) {
+          vec[i] <- (forward + backward) / 2
+        } else if (!is.na(forward)) {
+          vec[i] <- forward
+        } else if (!is.na(backward)) {
+          vec[i] <- backward
+        }
+      }
+    }
+
+    return(vec)
+  }
+  chrDf$mz <- fill_na_with_mean(chrDf$mz)
   mzVec <- round(chrDf$mz, digits = dight)
   pointNum <- nrow(chrDf)
   topIdx <- which.max(chrDf$intensity)
@@ -287,8 +335,8 @@ ZOIList2ZOITable <- function(ZOIList){
     x <- ZOIList[[i]]
     topIdx <- which.max(x$intensity)
     mz <- x$mz[topIdx]
-    mzmin <- min(x$mz)
-    mzmax <- max(x$mz)
+    mzmin <- min(x$mz, na.rm = TRUE)
+    mzmax <- max(x$mz, na.rm = TRUE)
     rt <- x$rt[topIdx]
     rtmin <- min(x$rt)
     rtmax <- max(x$rt)
@@ -296,7 +344,7 @@ ZOIList2ZOITable <- function(ZOIList){
     into <- sum(x$intensity * deltaRt)
     intb <- sum((x$intensity - x$baseline) * deltaRt)
     maxo <- x$intensity[topIdx]
-    sn <- maxo / max(x$baseline)
+    sn <- maxo / (max(x$baseline) + 1)
     sample <- attributes(x)$sample
     tb <- dplyr::tibble(cpid = paste0("CP", i),mz = mz, mzmin = mzmin, mzmax = mzmax, rt = rt, rtmin = rtmin, rtmax = rtmax, into = into, intb = intb, maxo = maxo, sn = sn, sample = sample, ms_level = 1, is_filled = FALSE)
     return(tb)
@@ -920,8 +968,8 @@ optParam4xcms <- function(data_QC, res_dir = "./",
   pb <- utils::txtProgressBar(max = length(chrDf_bins), style = 3)
   if(thread2 == 1){
     ZOIList <- lapply(1:length(chrDf_bins), function(i) {
-      utils::setTxtProgressBar(pb, i)
-      #print(i)
+      #utils::setTxtProgressBar(pb, i)
+      print(i)
       pickZOI(chrDf = chrDf_bins[[i]], smoothPara = smoothPara, baselinePara = baselinePara, sn = sn, preNum = preNum, tol_m = tol_m, snthresh = snthresh)
     })
   }else if(thread2 > 1){
@@ -947,21 +995,20 @@ optParam4xcms <- function(data_QC, res_dir = "./",
     else return(TRUE)
   })]
   #browser()
-  #saveRDS(ZOIList, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/optParam/240708/ZOIList.rds")
-  #ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/optParam/240708/ZOIList.rds")
+  #saveRDS(ZOIList, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240712/ZOIList.rds")
+  #ZOIList <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240712/ZOIList.rds")
   ZOIList <- lapply(ZOIList, function(x) tightenZOI(x, dight = 3))
   ZOIList <- ZOIList[sapply(ZOIList, function(x) !is.null(x))]
-  # ZOIList <- lapply(ZOIList, function(x) checkShapeZOI(x, snthresh = 3))
-  # ZOIList <- ZOIList[sapply(ZOIList, function(x) !is.null(x))]
   massTolVec <- sapply(ZOIList, function(x) {cal_massTol(chrDf = x, factor = 2, range = 1)})
-  plot(1:length(massTolVec), massTolVec)
   peakWidthVec <- sapply(1:length(ZOIList), function(i) {
     chrDf <- ZOIList[[i]]
     peakWidth <- max(chrDf$rt) - min(chrDf$rt)
     return(peakWidth)
   })
-  plot(1:length(peakWidthVec), peakWidthVec)
   ZOIList <- ZOIList[massTolVec <= maxMassTol & peakWidthVec >= minPeakWidth & peakWidthVec <= maxPeakWidth]
+  #pointNum <- sapply(ZOIList, nrow)
+  # ZOIList <- lapply(ZOIList, function(x) checkShapeZOI(x, snthresh = 3))
+  # ZOIList <- ZOIList[sapply(ZOIList, function(x) !is.null(x))]
   message("You are generating a ZOITable...")
   ZOITable <- ZOIList2ZOITable(ZOIList)
   #saveRDS(ZOITable, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/ZOITable.rds")
@@ -971,15 +1018,18 @@ optParam4xcms <- function(data_QC, res_dir = "./",
   #saveRDS(isoTable, file = "D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/isoTable.rds")
   #isoTable <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/isoTable.rds")
   ZOIList_new <- ZOIList[as.integer(stringr::str_replace(rownames(isoTable), "CP", ""))]
+  ZOITable_new <- ZOIList2ZOITable(ZOIList_new)
   # 需要一个指标来判断峰是不是可以纳入参数计算
   message("Calculate parameters...")
   massTolVec <- sapply(ZOIList_new, function(x) {cal_massTol(chrDf = x, factor = 2, range = 1)})
+  plot(x = 1:length(massTolVec), y = massTolVec)
   # plot(x = 1:length(massTolVec), y = sort(massTolVec))
   # plot(x = 1:length(diff(sort(massTolVec))), y = diff(sort(massTolVec)))
   tmp <- diff(sort(massTolVec))
   #sqrt(sum((massTolVec - median(massTolVec))^2) / (length(massTolVec) - 1))
   idx <- which(tmp > 2)[1]
   massTol_s <- mean(sort(massTolVec)[c(idx - 1, idx, idx + 1)])
+  tol_ppm <- massTol_s
   peakWidthVec <- sapply(1:length(ZOIList_new), function(i) {
     chrDf <- ZOIList_new[[i]]
     peakWidth <- max(chrDf$rt) - min(chrDf$rt)
@@ -987,40 +1037,27 @@ optParam4xcms <- function(data_QC, res_dir = "./",
   })
   tmp <- hist(peakWidthVec, 100, plot = FALSE)
   for(i in 1:length(tmp$density)){
-    if(sum(tmp$density[order(tmp$density, decreasing = TRUE)[1:i]]) > 0.95) break
+    if(sum(tmp$density[order(tmp$density, decreasing = TRUE)[1:i]]) > (sum(tmp$density) * 0.95)) break
   }
   delta <- (tmp$mids[2] - tmp$mids[1]) / 2
   peakWidth_s_min <- min(tmp$mids[order(tmp$density, decreasing = TRUE)[1:i]]) - delta
   peakWidth_s_max <- max(tmp$mids[order(tmp$density, decreasing = TRUE)[1:i]]) + delta
-  ZOIList_new <- ZOIList_new[massTolVec <= massTol_s & peakWidthVec >= peakWidth_s_min & peakWidthVec <= peakWidth_s_max]
-  noiseVec <- sapply(1:length(ZOIList_new), function(i) {
-    chrDf <- ZOIList_new[[i]]
-    noise <- min(chrDf$baseline)
-    return(noise)
+  peakWidth_min <- peakWidth_s_min
+  peakWidth_max <- peakWidth_s_max
+  ZOIList_new2 <- ZOIList_new[massTolVec <= massTol_s & peakWidthVec >= peakWidth_s_min & peakWidthVec <= peakWidth_s_max]
+  ZOITable_new2 <- ZOIList2ZOITable(ZOIList_new2)
+  sn <- round(min(ZOITable_new2$sn))
+  noiseVec <- sapply(ZOIList_new2, function(x) {
+    attributes(x)$noise0
   })
   noise <- min(noiseVec)
-  intVec <- sapply(1:length(ZOIList_new), function(i) {
-    chrDf <- ZOIList_new[[i]]
-    int <- max(chrDf$intensity)
-    return(int)
-  })
-  snVec <- intVec / noiseVec
-  plot(1:length(snVec), sort(snVec))
-  sn <- min(snVec)
-  preNumVec <- sapply(1:length(ZOIList_new), function(i) {
-    chrDf <- ZOIList_new[[i]]
-    return(nrow(chrDf))
+  preNumVec <- sapply(ZOIList_new2, function(x) {
+    attributes(x)$preNum
   })
   preNum <- min(preNumVec)
-  shiftParam <- cal_shift(chrDfList = ZOIList_new, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", range = 1)
+  shiftParam <- cal_shift(chrDfList = ZOIList_new2, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", range = 1)
   end_time <- Sys.time()
   print(end_time - start_time)
-  i <- 24
-  plot_chrDf(ZOIList_new[[which(peakWidthVec > 2)[i]]])
-  xcms::peaksWithMatchedFilter(int = ZOIList_new[[which(peakWidthVec > 2)[i]]]$intensity,
-                               rt = ZOIList_new[[which(peakWidthVec > 2)[i]]]$rt,
-                               fwhm = 3,
-                               snthresh = 1)
   return(c(ppm = tol_ppm, noise = noise, sn = sn, preNum = preNum, peakWidth_min = peakWidth_min, peakWidth_max = peakWidth_max,
            shiftParam))
 }
