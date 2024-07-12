@@ -20,7 +20,7 @@ plot_chrDf <- function(chrDf, linewidth = 1, noise = NA, xlim = NA, baseline = F
       dplyr::filter(rt >= xlim[1] & rt <= xlim[2])
     ymax <- max(chrDf$intensity)
   }
-  title <- paste0(round(min(chrDf$mz), 4), " - ", round(max(chrDf$mz), 4))
+  title <- paste0(round(min(chrDf$mz, na.rm = TRUE), 4), " - ", round(max(chrDf$mz, na.rm = TRUE), 4))
   p <- ggplot2::ggplot(data = chrDf, mapping = ggplot2::aes(x = rt)) +
     ggplot2::geom_line(mapping = ggplot2::aes(y = intensity), linewidth = linewidth) +
     ggplot2::theme_bw() +

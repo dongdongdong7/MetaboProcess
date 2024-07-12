@@ -141,8 +141,8 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
   # Nise0
   noise0 <- noiseEstimation(chrDf)
   #attributes(chrDf)$noise0 <- noise0
-  chrDf <- baselineEs(chrDf = chrDf, threshold = baselinePara$threshold, tol_m = baselinePara$tol_m, loops = baselinePara$loops)
-  aboveTHidx <- which(chrDf$intensity > chrDf$baseline)
+  #chrDf <- baselineEs(chrDf = chrDf, threshold = baselinePara$threshold, tol_m = baselinePara$tol_m, loops = baselinePara$loops)
+  aboveTHidx <- which(chrDf$intensity > noise0)
   if(length(aboveTHidx) == 0) return(NULL)
   candidateSegInd <- split(aboveTHidx, cumsum(c(1, diff(aboveTHidx) != 1)))
   candidateSegInd <- candidateSegInd[sapply(candidateSegInd, function(i) {
@@ -156,12 +156,13 @@ pickZOI <- function(chrDf, smoothPara = get_smoothPara(), baselinePara = get_bas
     #print(i)
     idx <- candidateSegInd[[i]]
     idxLength <- length(idx)
-    idx1 <- idx[1] - 1
+    idx1 <- idx[1] - 5
     if(idx1 < 1) idx1 <- 1
-    idx2 <- idx[idxLength] + 1
+    idx2 <- idx[idxLength] + 5
     if(idx2 > length(chrDf$intensity)) idx2 <- length(chrDf$intensity)
     idx <- unique(c(idx1:idx[1], idx, idx[idxLength]:idx2))
     ZOI <- chrDf[idx, ]
+    ZOI <- baselineEs(chrDf = ZOI, threshold = baselinePara$threshold, tol_m = baselinePara$tol_m, loops = baselinePara$loops)
     ZOIWidth <- (max(ZOI$rt) - min(ZOI$rt)) / 2 # half
     fwhm <- round(ZOIWidth / 2)
     tmp <- tryCatch({
@@ -699,7 +700,19 @@ edgeTrack_crude <- function(chrDf, preNum = 3, tol_m = 30){
     intercept <- A[2] - slope * A[1]
     return(c(slope = slope, intercept = intercept))
   }
+  aboveTHidx <- which(chrDf$intensity > chrDf$baseline)
+  if(length(aboveTHidx) == 0) return(NULL)
+  candidateSegInd <- split(aboveTHidx, cumsum(c(1, diff(aboveTHidx) != 1)))
+  pointNum <- sapply(candidateSegInd, length)
+  candidateSegInd <- candidateSegInd[[which.max(pointNum)]]
+  if(length(candidateSegInd) <= 3) return(NULL)
+  idx1 <- candidateSegInd[1] - 1
+  if(idx1 < 1) idx1 <- 1
+  idx2 <- candidateSegInd[length(candidateSegInd)] + 1
+  if(idx2 > length(chrDf$intensity)) idx2 <- length(chrDf$intensity)
+  chrDf <- chrDf[unique(c(idx1, candidateSegInd, idx2)), ]
   apex_idx <- which.max(chrDf$intensity)
+  if(is.na(chrDf$mz[apex_idx])) return(NULL)
   int <- chrDf$intensity;rt <- chrDf$rt
   int_a <- int[1:apex_idx];int_b <- int[apex_idx:length(int)]
   while(!all(diff(int_a) >0) | !all(diff(int_b) < 0)){
@@ -739,6 +752,7 @@ edgeTrack_crude <- function(chrDf, preNum = 3, tol_m = 30){
   return(chrDf)
 }
 cal_massTol <- function(chrDf, factor = 1, range = 0.95){
+  chrDf <- chrDf[!is.na(chrDf$mz), ]
   delete <- round(nrow(chrDf) * (1-range))
   mz_ref <- chrDf$mz[which.max(chrDf$intensity)]
   delta <- abs(chrDf$mz - mz_ref) / (mz_ref)
@@ -1056,11 +1070,11 @@ optParam4xcms <- function(data_QC, res_dir = "./",
 #' @examples
 #' optParam4xcms(data_QC)
 optParam4xcms_old <- function(data_QC, res_dir = "./",
-                          bin = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 10,
-                          smooth = "mean", size = 3, p = 3, etlD = 1, IETH = 10, preNum = 3, sn = 0, loops = 8, tol_m1 = 30, threshold = 1, thread2 = 1, tol_m2 = 40, output_ZOI = FALSE, output_ZOI2 = FALSE,
-                          factor = 1, range = 1,massRange = 1, output_ZOI3 = FALSE,
-                          rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", widthRange = 1, shiftRange = 0.95,
-                          maxMassTol = 100, minPeakWidth = 1, maxPeakWidth = 100){
+                              bin = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 10,
+                              smooth = "mean", size = 3, p = 3, etlD = 1, IETH = 10, preNum = 3, sn = 0, loops = 8, tol_m1 = 30, threshold = 1, thread2 = 1, tol_m2 = 40, output_ZOI = FALSE, output_ZOI2 = FALSE,
+                              factor = 1, range = 1,massRange = 1, output_ZOI3 = FALSE,
+                              rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method = "mz", widthRange = 1, shiftRange = 0.95,
+                              maxMassTol = 100, minPeakWidth = 1, maxPeakWidth = 100){
   #browser()
   start_time <- Sys.time()
   message("You are using optParam4xcms function for ms1!")
@@ -1127,4 +1141,3 @@ optParam4xcms_old <- function(data_QC, res_dir = "./",
   print(end_time - start_time)
   return(c(c(ppm = tol_ppm), cwtParam, shiftParam))
 }
-
