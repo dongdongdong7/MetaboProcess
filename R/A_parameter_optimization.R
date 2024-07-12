@@ -74,6 +74,7 @@ generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, minScan = 
     }, BPPARAM = BiocParallel::SnowParam(workers = thread,
                                          progressbar = TRUE))
   }else stop("Thread is wrong!")
+  chrDfList <- chrDfList[!sapply(chrDfList, is.null)]
   end_time <- Sys.time()
   print(end_time - start_time)
   return(chrDfList)
@@ -855,6 +856,21 @@ cal_shift <- function(chrDfList, rt_tol = 5, mz_tol = 0.02, tol_nf = 0.5, method
 #' @export
 #'
 #' @examples
+#' file_dir <- "D:/fudan/Projects/2024/MetaboProcess/Data/SRM 1950 MassIVE MSV000083469/"
+#' patterns <- c(".mzXML", ".mzxml", ".mzML", ".mzml")
+#' patterns <- paste0(patterns, collapse = "|")
+#' file_path <- list.files(file_dir, pattern = patterns)
+#' file_path <- paste0(file_dir, file_path)
+#' pd <- data.frame(sample_name = sub(basename(file_path), pattern = patterns,
+#'                                    replacement = ""),
+#'                  sample_group = rep("QC", 5),
+#'                  sample_type = rep("QC", 5),
+#'                  sample_inject = c(1, 3, 4, 5, 2),
+#'                  sample_path = file_path,
+#'                  stringsAsFactors = FALSE)
+#' pd <- dplyr::arrange(pd, sample_inject)
+#' data <- MsExperiment::readMsExperiment(pd$sample_path, sampleData = pd)
+#' data_QC <- data
 #' optParam4xcms(data_QC = data_QC, thread2 = 4)
 optParam4xcms <- function(data_QC, res_dir = "./",
                           bin = 0.05, slide = 0.05, mslevel = 1, thread1 = 1, output_bins = FALSE, bin_scanNum = 100,
@@ -863,18 +879,19 @@ optParam4xcms <- function(data_QC, res_dir = "./",
   start_time <- Sys.time()
   message("You are using optParam4xcms function for ms1!")
   message("Generate mass bin...")
-  chrDf_bins_QC <- lapply(1:length(data_QC), function(n) {
-    message(paste0("QC ", n, "/", length(data_QC), "\n"))
-    ndata <- data_QC[n]
-    tmp <- generateBin(ndata = ndata, bin = bin, slide = slide, mslevel = mslevel, thread = thread1)
-    return(tmp)
-  })
-  #chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240705/chrDf_bins_QC.rds")
+  # chrDf_bins_QC <- lapply(1:length(data_QC), function(n) {
+  #   message(paste0("QC ", n, "/", length(data_QC), "\n"))
+  #   ndata <- data_QC[n]
+  #   tmp <- generateBin(ndata = ndata, bin = bin, slide = slide, mslevel = mslevel, thread = thread1)
+  #   return(tmp)
+  # })
+  chrDf_bins_QC <- readRDS("D:/fudan/Projects/2024/MetaboProcess/Progress/generate_bins/240712/chrDf_bins_QC.rds")
   for(n in 1:length(chrDf_bins_QC)){
     for(m in 1:length(chrDf_bins_QC[[n]])){
       attributes(chrDf_bins_QC[[n]][[m]])$sample <- n
     }
   }
+  browser()
   chrDf_bins <- purrr::list_flatten(chrDf_bins_QC)
   chrDf_bins <- chrDf_bins[which(sapply(chrDf_bins, function(x){
     if(nrow(x) <= bin_scanNum) return(FALSE)
