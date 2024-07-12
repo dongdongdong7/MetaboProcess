@@ -6,6 +6,7 @@
 #' @param bin bin mz.
 #' @param slide slide size.
 #' @param mslevel mslevel.
+#' @param minScan minScan.
 #' @param thread thread.
 #'
 #' @return A chrDf list.
@@ -28,7 +29,7 @@
 #' data <- MsExperiment::readMsExperiment(pd$sample_path, sampleData = pd)
 #' ndata <- data[1]
 #' chrDfList_bins <- generateBin(ndata = ndata, thread = 4)
-generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1){
+generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, minScan = 100, thread = 1){
   start_time <- Sys.time()
   sps <- xcms::spectra(ndata) %>% Spectra::filterMsLevel(mslevel)
   lowMz <- round(min(sapply(Spectra::mz(sps), min)))
@@ -46,6 +47,8 @@ generateBin <- function(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1
       index <- which(mzData[[j]] >= currmzRange[1] & mzData[[j]] < currmzRange[2])
       index <- index[which.max(intData[[j]][index])]
     })
+    indexNum <- sum(sapply(indexList, length))
+    if(indexNum < minScan) return(NULL)
     intVec <- sapply(1:length(intData), function(j){
       int <- intData[[j]][indexList[[j]]]
       if(length(int) == 0) return(0)

@@ -4,7 +4,14 @@
 \alias{generateBin}
 \title{generateBin}
 \usage{
-generateBin(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1)
+generateBin(
+  ndata,
+  bin = 0.05,
+  slide = 0.05,
+  mslevel = 1,
+  minScan = 100,
+  thread = 1
+)
 }
 \arguments{
 \item{ndata}{nth sample data, it is a MsExperiment object.}
@@ -14,6 +21,8 @@ generateBin(ndata, bin = 0.05, slide = 0.05, mslevel = 1, thread = 1)
 \item{slide}{slide size.}
 
 \item{mslevel}{mslevel.}
+
+\item{minScan}{minScan.}
 
 \item{thread}{thread.}
 }
