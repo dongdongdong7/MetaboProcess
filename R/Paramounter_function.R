@@ -7,17 +7,18 @@
 #' @param smooth smooth.
 #' @param cutoff cutoff.
 #' @param thread thread.
+#' @param msLevel msLevel.
 #'
 #' @return A number - ppmCut.
 #' @export
 #'
 #' @examples
 #' ppmCut <- paramounterPart1(file_path = file_path, thread = 24)
-paramounterPart1 <- function(file_path, massSDrange = 2, smooth = 0, cutoff = 0.95, thread = 1){
+paramounterPart1 <- function(file_path, massSDrange = 2, smooth = 0, cutoff = 0.95, thread = 1, msLevel = 1L){
   start_time <- Sys.time()
   ppm2DList <- lapply(1:length(file_path), function(q) {
     message(paste0(q, "/", length(file_path), "\n"))
-    ms1data <- MSnbase::readMSData(files = file_path[q], mode = "onDisk", msLevel. = 1)
+    ms1data <- MSnbase::readMSData(files = file_path[q], mode = "onDisk", msLevel. = msLevel)
     mzTmp <- MSnbase::mz(ms1data)
     mzRange <- c(min(unlist(mzTmp)), max(unlist(mzTmp)))
     ROI <- seq(mzRange[1], mzRange[2], 0.05)
@@ -214,13 +215,14 @@ paramounterPart1 <- function(file_path, massSDrange = 2, smooth = 0, cutoff = 0.
 #' @param smooth smooth.
 #' @param ppmCut ppmCut calculated by part1.
 #' @param thread thread.
+#' @param msLevel msLevel.
 #'
 #' @return A vector of XCMS parameters.
 #' @export
 #'
 #' @examples
 #' parameters <- paramounterPart2(file_path = file_path, ppmCut = ppmCut, thread = 16)
-paramounterPart2 <- function(file_path, massSDrange = 2, smooth = 0, ppmCut = NA, thread = 1){
+paramounterPart2 <- function(file_path, massSDrange = 2, smooth = 0, ppmCut = NA, thread = 1, msLevel = 1L){
   if(is.na(ppmCut)) stop("You should run paramounterPart1 first!")
 
   mzDiff <- c()
@@ -240,7 +242,7 @@ paramounterPart2 <- function(file_path, massSDrange = 2, smooth = 0, ppmCut = NA
   colnames(Shift) <- c("mz", "rt", "Sample")
   for(q in 1:length(file_path)){
     message(paste0(q, "/", length(file_path), "\n"))
-    ms1data <- MSnbase::readMSData(files = file_path[q], mode = "onDisk", msLevel. = 1)
+    ms1data <- MSnbase::readMSData(files = file_path[q], mode = "onDisk", msLevel. = msLevel)
     mzTmp <- MSnbase::mz(ms1data)
     mzRange <- c(min(unlist(mzTmp)), max(unlist(mzTmp)))
     ROI <- seq(mzRange[1], mzRange[2], 0.05)
