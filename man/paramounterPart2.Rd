@@ -9,7 +9,8 @@ paramounterPart2(
   massSDrange = 2,
   smooth = 0,
   ppmCut = NA,
-  thread = 1
+  thread = 1,
+  msLevel = 1L
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ paramounterPart2(
 \item{ppmCut}{ppmCut calculated by part1.}
 
 \item{thread}{thread.}
+
+\item{msLevel}{msLevel.}
 }
 \value{
 A vector of XCMS parameters.

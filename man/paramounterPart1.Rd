@@ -9,7 +9,8 @@ paramounterPart1(
   massSDrange = 2,
   smooth = 0,
   cutoff = 0.95,
-  thread = 1
+  thread = 1,
+  msLevel = 1L
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ paramounterPart1(
 \item{cutoff}{cutoff.}
 
 \item{thread}{thread.}
+
+\item{msLevel}{msLevel.}
 }
 \value{
 A number - ppmCut.

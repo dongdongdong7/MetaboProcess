@@ -3,7 +3,7 @@ devtools::document()
 # 0. Environment parameter
 # File path
 file_dir <- "D:/fudan/Projects/2024/MetaboProcess/Progress/build_package/test_data/massProcesser/"
-patterns <- c(".mzXML", ".mzxml", "mzML", ".mzml")
+patterns <- c(".mzXML", ".mzxml", ".mzML", ".mzml")
 patterns <- paste0(patterns, collapse = "|")
 file_path <- list.files(file_dir, pattern = patterns)
 file_path <- paste0(file_dir, file_path)
@@ -32,3 +32,11 @@ data_QC <- data[which(pd$sample_type == "QC")]
 # 1.2 Optimal parameters
 ppmCut <- paramounterPart1(file_path = MsExperiment::sampleData(data_QC)$sample_path, thread = 4)
 optPara_xcms <- paramounterPart2(file_path = MsExperiment::sampleData(data_QC)$sample_path, ppmCut = ppmCut, thread = 4)
+
+cwp_opt_ms1 <- xcms::CentWaveParam(snthresh = 3,
+                                   noise = 100,
+                                   ppm = 10,
+                                   peakwidth = c(3, 20),
+                                   prefilter = c(3, 100))
+data_opt_ms1 <- xcms::findChromPeaks(data, param = cwp_opt_ms1, chunkSize = 3L, msLevel = 1L,
+                                     BPPARAM = BiocParallel::SnowParam(workers = 3L, type = "SOCK"))

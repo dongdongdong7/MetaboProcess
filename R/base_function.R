@@ -237,58 +237,46 @@ getChromPeakTable <- function(data, style = "xcms"){
     return(chromPeakTable)
   }else stop("style is wrong!")
 }
-#' @title getChromPeak
+
+#' @title getChromPeaksDf
 #' @description
-#' Get a chromPeak from XcmsExperiment.
+#' Get chromPeak date frame.
 #'
 #' @param data A XcmsExperiment object.
-#' @param cpid cpid.
+#' @param cpid cpid vector.
+#' @param noise1 noise for ms1.
+#' @param noise2 noise for ms2.
+#' @param smoothPara smoothPara.
 #' @param expandRt expandRt.
-#' @param smooth Whether or not smooth.
-#' @param method Smooth method.
-#' @param size size.
-#' @param p p.
-#' @param n n.
-#' @param m m.
-#' @param ts ts.
+#' @param expandMz expandMz
 #'
-#' @return A chrDf.
+#' @return A chrDfList.
 #' @export
 #'
 #' @examples
-#' getChromPeak(data, cpid = cpid)
-getChromPeak <- function(data, cpid, expandRt = 0,
-                         smooth = FALSE, method = "mean",size = 3, p = 3, n = p + 3 - p%%2, m = 0, ts = 1){
-  #browser()
-  #chrs <- xcms::chromPeakChromatograms(data)
-  #chrs <- xcms::chromPeakChromatograms(data, peaks = cpid)
-  pk_mat <- xcms::chromPeaks(data)[cpid, ]
-  pk_meta <- xcms::chromPeakData(data)[cpid, ]
-  dataOrigin <- MsExperiment::sampleData(data)$spectraOrigin[pk_mat[["sample"]]]
-  sps <- xcms::spectra(data) %>%
-    Spectra::filterDataOrigin(dataOrigin) %>%
-    Spectra::filterMsLevel(pk_meta[1, "ms_level"]) %>%
-    Spectra::filterRt(c(pk_mat[["rtmin"]] - expandRt, pk_mat[["rtmax"]] + expandRt)) %>%
-    Spectra::filterMzRange(c(pk_mat[["mzmin"]], pk_mat[["mzmax"]]))
-  rtsps <- Spectra::rtime(sps)
-  peaksData <- Spectra::peaksData(sps)
-  chrDf <- purrr::list_rbind(lapply(1:length(sps), function(j){
-    rt_tmp <- rtsps[j]
-    peakMat <- peaksData[[j]]
-    if(nrow(peakMat) == 0) return(NULL)
-    else{
-      peakDf <- as.data.frame(peakMat)
-      peakDf$rt <- rt_tmp
-      return(peakDf)
+#' getChromPeaksDf(data)
+getChromPeaksDf <- function(data, cpid = NA, noise1 = 0, noise2 = 0, smoothPara = get_smoothPara(), expandRt = 0, expandMz = 0){
+  tmp <- xcms::chromPeakChromatograms(data, peaks = cpid, expandRt = expandRt, expandMz = expandMz)
+  chrDfList <- lapply(1:nrow(tmp), function(i) {
+    XChr <- tmp[i, 1]
+    msLevel <- XChr@msLevel
+    if(msLevel == 1) noise <- noise1
+    else if(msLevel == 2) noise <- noise2
+    else stop("msLevel wrong!")
+    intensity <- XChr@intensity
+    intensity[which(intensity <= noise)] <- NA
+    rt <- XChr@rtime
+    chrDf <- dplyr::tibble(intensity = intensity, rt = rt) %>%
+      dplyr::filter(!is.na(intensity))
+    chrDf$mz <- mean(XChr@mz)
+    if(smoothPara$smooth){
+      if(smoothPara$method == "mean") chrDf$intensity <- smoothMean(chrDf$intensity, size = smoothPara$size)
+      else if(smoothPara$method == "sg") chrDf$intensity <- smoothSg(chrDf$intensity, p = smoothPara$p, n = smoothPara$n, m = smoothPara$m, ts = smoothPara$ts)
     }
-  }))
-  if(smooth){
-    if(method == "mean") chrDf$intensity <- smoothMean(chrDf$intensity, size = size)
-    else if(method == "sg") chrDf$intensity <- smoothSg(chrDf$intensity, p = p, n = n, m = m, ts = ts)
-    else stop("method is wrong!")
-  }
-  return(chrDf)
-  #plot_chrDf(chrDf)
+    return(chrDf)
+  })
+  names(chrDfList) <- cpid
+  return(chrDfList)
 }
 #' @title getFeatureTable
 #' @description
